@@ -31,7 +31,6 @@ import com.xpn.xwiki.doc.XWikiAttachment;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.test.AbstractBridgedXWikiComponentTestCase;
 import com.xpn.xwiki.web.XWikiServletContext;
-import org.apache.lucene.document.Document;
 import com.xpn.xwiki.XWikiException;
 
 /**
