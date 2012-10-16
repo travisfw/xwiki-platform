@@ -619,6 +619,7 @@ ul.xwikitabbar {
   color: $theme.menuSelectedEntryLinkColor;
   cursor: default;
   text-decoration: none;
+  text-shadow: none;
 }
 
 /* ----------------History----------------*/
