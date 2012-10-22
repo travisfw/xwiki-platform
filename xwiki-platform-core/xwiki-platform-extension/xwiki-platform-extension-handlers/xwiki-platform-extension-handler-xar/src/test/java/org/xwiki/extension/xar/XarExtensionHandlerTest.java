@@ -277,16 +277,20 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
             "RegisterMacrosOnImportListener");
     }
 
-    private XarInstalledExtension install(ExtensionId extensionId, String wiki) throws Throwable
+    private XarInstalledExtension install(ExtensionId extensionId, String wiki, DocumentReference user)
+        throws Throwable
     {
-        return installOnNamespace(extensionId, wiki != null ? "wiki:" + wiki : null);
+        return installOnNamespace(extensionId, wiki != null ? "wiki:" + wiki : null, user);
     }
 
-    private XarInstalledExtension installOnNamespace(ExtensionId extensionId, String namespace) throws Throwable
+    private XarInstalledExtension installOnNamespace(ExtensionId extensionId, String namespace, DocumentReference user)
+        throws Throwable
     {
         InstallRequest installRequest = new InstallRequest();
-        installRequest.setProperty("user.reference", getContext().getUserReference());
-        installRequest.setProperty("checkrights", true);
+        if (user != null) {
+            installRequest.setProperty("user.reference", getContext().getUserReference());
+            installRequest.setProperty("checkrights", true);
+        }
         installRequest.addExtension(extensionId);
         if (namespace != null) {
             installRequest.addNamespace(namespace);
@@ -342,7 +346,7 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
 
         // install
 
-        install(this.localXarExtensiontId1, "wiki");
+        install(this.localXarExtensiontId1, "wiki", this.contextUser);
 
         // validate
 
@@ -355,7 +359,8 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
 
         Assert.assertEquals("Wrong content", "content", page.getContent());
         Assert.assertEquals("Wrong author", this.contextUser, page.getAuthorReference());
-        Assert.assertEquals("Wrong creator", new DocumentReference("wiki", "space", "existingcreator"), page.getCreatorReference());
+        Assert.assertEquals("Wrong creator", new DocumentReference("wiki", "space", "existingcreator"),
+            page.getCreatorReference());
         Assert.assertEquals("Wrong content author", this.contextUser, page.getContentAuthorReference());
         Assert.assertEquals("Wrong version", "2.1", page.getVersion());
         Assert.assertFalse("Document is hidden", page.isHidden());
@@ -412,6 +417,71 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
     }
 
     @Test
+    public void testInstallOnWikiWithoutAuthor() throws Throwable
+    {
+        XWikiDocument existingDocument = new XWikiDocument(new DocumentReference("wiki", "space", "page"));
+        BaseObject object = new BaseObject();
+        object.setXClassReference(new DocumentReference("wiki", "space", "class"));
+        existingDocument.addXObject(object);
+        existingDocument.setCreatorReference(new DocumentReference("wiki", "space", "existingcreator"));
+        this.mockXWiki.saveDocument(existingDocument, "", getContext());
+
+        // install
+
+        install(this.localXarExtensiontId1, "wiki", null);
+
+        // validate
+
+        DocumentReference authorReference = new DocumentReference("wiki", "XWiki", "author");
+        DocumentReference creatorReference = new DocumentReference("wiki", "XWiki", "creator");
+        DocumentReference contentAuthorReference = new DocumentReference("wiki", "XWiki", "contentAuthor");
+
+        // space.page
+        XWikiDocument page = this.mockXWiki.getDocument(existingDocument.getDocumentReference(), getContext());
+
+        Assert.assertFalse("Document wiki:space.page has not been saved in the database", page.isNew());
+
+        Assert.assertNull(page.getXObject(object.getXClassReference()));
+
+        Assert.assertEquals("Wrong content", "content", page.getContent());
+        Assert.assertEquals("Wrong creator", new DocumentReference("wiki", "space", "existingcreator"),
+            page.getCreatorReference());
+        Assert.assertEquals("Wrong author", authorReference, page.getAuthorReference());
+        Assert.assertEquals("Wrong content author", contentAuthorReference, page.getContentAuthorReference());
+        Assert.assertEquals("Wrong version", "2.1", page.getVersion());
+        Assert.assertFalse("Document is hidden", page.isHidden());
+
+        BaseClass baseClass = page.getXClass();
+        Assert.assertNotNull(baseClass.getField("property"));
+        Assert.assertEquals("property", baseClass.getField("property").getName());
+        Assert.assertSame(NumberClass.class, baseClass.getField("property").getClass());
+
+        // space.pagewithattachment
+
+        XWikiDocument pagewithattachment =
+            this.mockXWiki.getDocument(new DocumentReference("wiki", "space", "pagewithattachment"), getContext());
+        Assert.assertFalse(pagewithattachment.isNew());
+        Assert.assertEquals("Wrong version", "2.1", pagewithattachment.getVersion());
+        Assert.assertEquals("Wrong creator", creatorReference, pagewithattachment.getCreatorReference());
+        Assert.assertEquals("Wrong author", authorReference, pagewithattachment.getAuthorReference());
+        Assert.assertEquals("Wrong content author", contentAuthorReference,
+            pagewithattachment.getContentAuthorReference());
+
+        XWikiAttachment attachment = pagewithattachment.getAttachment("attachment.txt");
+        Assert.assertNotNull(attachment);
+        Assert.assertEquals("attachment.txt", attachment.getFilename());
+        Assert.assertEquals(18, attachment.getContentSize(getContext()));
+        Assert.assertEquals("attachment content", IOUtils.toString(attachment.getContentInputStream(getContext())));
+
+        // space1.page1
+
+        XWikiDocument page1 =
+            this.mockXWiki.getDocument(new DocumentReference("wiki", "space1", "page1"), getContext());
+
+        Assert.assertFalse("Document wiki:space1.page1 has not been saved in the database", page1.isNew());
+    }
+
+    @Test
     public void testUpgradeOnWiki() throws Throwable
     {
         getMockery().checking(new Expectations()
@@ -424,11 +494,11 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
             }
         });
 
-        install(this.localXarExtensiontId1, "wiki");
+        install(this.localXarExtensiontId1, "wiki", this.contextUser);
 
         // upgrade
 
-        install(this.localXarExtensiontId2, "wiki");
+        install(this.localXarExtensiontId2, "wiki", this.contextUser);
 
         // validate
 
@@ -457,10 +527,11 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
         Assert.assertFalse("Document wiki.space2.page2 has not been saved in the database", newPage.isNew());
 
         // TODO: wait for http://jira.xwiki.org/browse/XWIKI-8257
-        /*XWikiDocument removedPage =
-            this.mockXWiki.getDocument(new DocumentReference("wiki", "space1", "page1"), getContext());
-
-        Assert.assertTrue("Document wiki.space1.page1 has not been removed from the database", removedPage.isNew());*/
+        /*
+         * XWikiDocument removedPage = this.mockXWiki.getDocument(new DocumentReference("wiki", "space1", "page1"),
+         * getContext()); Assert.assertTrue("Document wiki.space1.page1 has not been removed from the database",
+         * removedPage.isNew());
+         */
     }
 
     @Test
@@ -476,7 +547,7 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
             }
         });
 
-        install(this.localXarExtensiontId1, "wiki");
+        install(this.localXarExtensiontId1, "wiki", this.contextUser);
 
         // uninstall
 
@@ -520,7 +591,7 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
 
         // install
 
-        install(this.localXarExtensiontId1, null);
+        install(this.localXarExtensiontId1, null, this.contextUser);
 
         // validate
 
@@ -623,7 +694,7 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
             }
         });
 
-        install(this.localXarExtensiontId1, null);
+        install(this.localXarExtensiontId1, null, this.contextUser);
     }
 
     // uninstall
@@ -640,13 +711,13 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
             }
         });
 
-        install(this.localXarExtensiontId1, "wiki");
+        install(this.localXarExtensiontId1, "wiki", this.contextUser);
     }
 
     @Test(expected = InstallException.class)
     public void testInstallOnUnsupportedNamespace() throws Throwable
     {
-        installOnNamespace(this.localXarExtensiontId1, "unsupportednamespace");
+        installOnNamespace(this.localXarExtensiontId1, "unsupportednamespace", this.contextUser);
     }
 
     // uninstall
@@ -666,7 +737,7 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
             }
         });
 
-        install(this.localXarExtensiontId1, null);
+        install(this.localXarExtensiontId1, null, this.contextUser);
 
         getMockery().checking(new Expectations()
         {
@@ -692,7 +763,7 @@ public class XarExtensionHandlerTest extends AbstractBridgedComponentTestCase
             }
         });
 
-        install(this.localXarExtensiontId1, "wiki");
+        install(this.localXarExtensiontId1, "wiki", this.contextUser);
 
         getMockery().checking(new Expectations()
         {

@@ -119,7 +119,7 @@ public class DocumentImporterHandler extends DocumentHandler
             if (document != currentDocument) {
                 if (document.isNew()) {
                     currentDocument.apply(document);
-                    if (!this.hasCurrentDocument) {
+                    if (!this.hasCurrentDocument && userReference == null) {
                         currentDocument.setCreatorReference(document.getCreatorReference());
                     }
                     currentDocument.setAuthorReference(document.getAuthorReference());
