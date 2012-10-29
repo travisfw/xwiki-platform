@@ -420,6 +420,12 @@ rendering.transformations = $xwikiRenderingTransformations
 # csrf.enabled = true
 
 #-------------------------------------------------------------------------------------
+# Authorization management
+#-------------------------------------------------------------------------------------
+
+# security.authorization.contentAuthorResolverHint = default
+
+#-------------------------------------------------------------------------------------
 # Extension Manager
 #-------------------------------------------------------------------------------------
 
@@ -447,3 +453,4 @@ rendering.transformations = $xwikiRenderingTransformations
 #-# 
 #-# The default is:
 # extension.userAgent=XWikiExtensionManager
+
